@@ -17,11 +17,11 @@ enum NODE_TYPE {
 enum OP_TYPE {
     OP_SIN,
     OP_COS,
-    OP_ADD,
-    OP_DIV,
-    OP_MUL,
-    OP_SUB,
-    OP_POW,
+    OP_ADD = 10,
+    OP_DIV = 20,
+    OP_MUL = 21,
+    OP_SUB = 11,
+    OP_POW = 30,
     OP_EMPTY
 };
 

@@ -26,8 +26,6 @@ const Func_node F_EMPTY = {NODE_EMPTY, NAN, OP_EMPTY, 0, NULL, NULL};
 
 Function* getFunc (const char* str);
 
-void FunctionDump (Function* func);
-
-
+void FunctionDump (Function* func, const char* format);
 
 #endif // cmathlib.h
