@@ -58,7 +58,7 @@ static void dumpEq_node (const Func_node* node, List* varlist) {
             fprintf(file, "[label=\" %lg \"", node->value);
             break;
         case NODE_VAR:
-            fprintf(file, "[label=\" var: %s \"", varlist->arr[node->varind].value.name);
+            fprintf(file, "[label=\" var_%ld: %s \"", node->varind, varlist->arr[node->varind].value.name);
             break;
     }
     fprintf(file, " color=\"olivedrab1\"]\n");
@@ -101,13 +101,17 @@ static Func_node* getN (const char* *ptr, List* varlist) {
     if (sscanf(*ptr, "%lf%n", &val, &pos)) {
         node->type  = NODE_CST;
         node->value = val;
-    } else if (sscanf(*ptr, "%[^^()+-=/*]%s",  var)) {
+    } else if (sscanf(*ptr, "%[^^()+-=/* \t\n]%s",  var)) {
         node->type  = NODE_VAR;
         var_t buf;
         pos = strlen(var);
         buf.name = (char*)calloc(pos + 1, sizeof(char));
         strcpy(buf.name, var);
-        node->varind = listAdd(varlist, 0, buf);
+
+        node->varind = listSearch(varlist, buf.name);
+        if (node->varind == EMPTY) {
+            node->varind = listAdd(varlist, 0, buf);
+        }
     }
 
     assert(pos);
@@ -138,7 +142,6 @@ static Func_node* getL (const char* *ptr, List* varlist) {
 
     skipSpaces(ptr);
     while (**ptr == '^') {
-        char com = **ptr;
         (*ptr)++;
 
         val = newNode(F_EMPTY);

@@ -95,4 +95,6 @@ void listLin  (List* lst);
  */
 size_t listFind (const List* lst, const size_t pos);
 
+size_t listSearch (const List* lst, const char* str);
+
 #endif // clist.h

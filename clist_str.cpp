@@ -223,3 +223,16 @@ size_t listFind (const List* lst, const size_t pos) { /// make hard
 
     return EMPTY;
 }
+
+size_t listSearch (const List* lst, const char* str) {
+    size_t pos = lst->arr[0].next;
+    for (size_t i = 0; i < lst->size; i++) {
+        if (!strcmp(str, lst->arr[pos].value.name)) {
+            return pos;
+        }
+
+        pos = lst->arr[pos].next;
+    }
+
+    return EMPTY;
+}
