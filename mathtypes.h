@@ -10,7 +10,8 @@ typedef struct var_t {
 enum NODE_TYPE {
     NODE_OPR,
     NODE_CST,
-    NODE_VAR
+    NODE_VAR,
+    NODE_EMPTY
 };
 
 enum OP_TYPE {
@@ -20,7 +21,8 @@ enum OP_TYPE {
     OP_DIV,
     OP_MUL,
     OP_SUB,
-    OP_POW
+    OP_POW,
+    OP_EMPTY
 };
 
 

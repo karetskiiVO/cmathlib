@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 int main () {
-
-    printf("%lf\n", getEquation(2 * 4 + 1));
+    Function* func = getFunc("x^2 + (1+2)^3 * 3 * 4^2 +y");
+    FunctionDump(func);
     return 0;
 }

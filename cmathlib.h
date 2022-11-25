@@ -4,7 +4,7 @@
 #include "clist_str.h"
 #include "mathtypes.h"
 
-#define getEquation(__Equation) getG(#__Equation)
+#define getFunction(__Equation) getFunc(#__Equation)
 
 typedef struct Func_node {
     NODE_TYPE type;
@@ -18,19 +18,15 @@ typedef struct Func_node {
 } Func_node;
 
 typedef struct Function {
-    List variables;
+    List* variables;
     Func_node* equation;
 } Function;
 
-Elem getG (const char* str);
-Elem getE (const char* *ptr);
-Elem getT (const char* *ptr);
-Elem getP (const char* *ptr);
-Elem getN (const char* *ptr);
+const Func_node F_EMPTY = {NODE_EMPTY, NAN, OP_EMPTY, 0, NULL, NULL};
 
+Function* getFunc (const char* str);
 
-
-
+void FunctionDump (Function* func);
 
 
 
