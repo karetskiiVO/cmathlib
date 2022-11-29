@@ -15,13 +15,14 @@ enum NODE_TYPE {
 };
 
 enum OP_TYPE {
-    OP_SIN,
-    OP_COS,
-    OP_ADD = 10,
-    OP_DIV = 20,
-    OP_MUL = 21,
-    OP_SUB = 11,
-    OP_POW = 30,
+    OP_sin,
+    OP_cos,
+    OP_log,
+    OP_add = 10,
+    OP_div = 20,
+    OP_mul = 21,
+    OP_sub = 11,
+    OP_pow = 30,
     OP_EMPTY
 };
 

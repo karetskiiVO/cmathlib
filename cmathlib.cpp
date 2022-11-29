@@ -1,15 +1,19 @@
 #include "cmathlib.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <assert.h>
 #include <string.h>
 
 #define isOpr(_node,_op_type) if ((_node)->type == NODE_OPR && (_node)->nodeop == (_op_type))
-#define tex_breket(_node,_side,_brek)   if (node->nodeop != OP_DIV && node->nodeop != OP_POW && (_node)->_side->type == NODE_OPR && (int)((_node)->_side->nodeop / 10) < (int)((_node)->nodeop / 10)) \
+#define tex_breket(_node,_side,_brek)   if (node->nodeop != OP_div && node->nodeop != OP_pow && (_node)->_side->type == NODE_OPR && (int)((_node)->_side->nodeop / 10) < (int)((_node)->nodeop / 10)) \
                                     fprintf(file, "%s", _brek)
 
-static Func_node* newNode (Func_node n_node);
 static void skipSpaces (const char* *ptr);
+
+static Func_node* newNode    (Func_node n_node);
+static Func_node* newNodeOp  (OP_TYPE type);
+static Func_node* newNodeCst (double val);
 
 static Func_node* getN (const char* *ptr, List* varlist);
 static Func_node* getP (const char* *ptr, List* varlist);
@@ -92,8 +96,7 @@ void FunctionDump (Function* func, const char* format) {
         system("pdflatex eq.tex");
     }
 
-
-
+    ///////////////
 
 }
 
@@ -134,11 +137,14 @@ static void graph_dumpEq_edge (const Func_node* node) {
 
 static const char* opPrint (OP_TYPE op) {
     switch (op) {
-        case OP_ADD: return "+";
-        case OP_SUB: return "-";
-        case OP_MUL: return "*";
-        case OP_DIV: return "/";
-        case OP_POW: return "^";
+        case OP_add: return "+";
+        case OP_sub: return "-";
+        case OP_mul: return "*";
+        case OP_div: return "/";
+        case OP_pow: return "^";
+        case OP_cos: return "cos";
+        case OP_sin: return "sin";
+        case OP_log: return "log";
         default:     return NULL;
     }
 }
@@ -173,21 +179,40 @@ static Func_node* getN (const char* *ptr, List* varlist) {
     return node;
 }
 
+#define isfunc(_fnc_str, _fnc)          \
+else if (!strcmp(_fnc_str, #_fnc)) {     \
+    printf("%s\n", _fnc_str);            \
+    val = newNodeOp(OP_##_fnc);    \
+    *ptr += pos;                \
+    val->right = getP(ptr, varlist);    \
+}
+
 static Func_node* getP (const char* *ptr, List* varlist) {
     skipSpaces(ptr);
     Func_node* val = NULL;
-    if (**ptr == '(') {
-        (*ptr)++;
-        val = getE(ptr, varlist);
-        skipSpaces(ptr);
-        assert(**ptr == ')');
-        (*ptr)++;
-    } else {
-        val = getN(ptr, varlist);
-    }
+    size_t pos = 0;
+    char fnc[100] = "";
 
+    sscanf(*ptr, "%[^ ()]%ln", fnc, &pos);
+    if (false);
+    isfunc(fnc, sin)
+    isfunc(fnc, cos)
+    isfunc(fnc, log)
+    else {
+        if (**ptr == '(') {
+            (*ptr)++;
+            val = getE(ptr, varlist);
+            skipSpaces(ptr);
+            assert(**ptr == ')');
+            (*ptr)++;
+        } else {
+            val = getN(ptr, varlist);
+        }
+    }
     return val;
 }
+
+#undef isfunc
 
 static Func_node* getL (const char* *ptr, List* varlist) {
     Func_node* val = getP(ptr, varlist);
@@ -204,7 +229,7 @@ static Func_node* getL (const char* *ptr, List* varlist) {
         val->type   = NODE_OPR;
         val->value  = NAN;
         val->varind = 0;
-        val->nodeop = OP_POW;
+        val->nodeop = OP_pow;
 
         buf = val;
     }
@@ -229,9 +254,9 @@ static Func_node* getT (const char* *ptr, List* varlist) {
         val->varind = 0;
 
         if (com == '*') {
-            val->nodeop = OP_MUL;
+            val->nodeop = OP_mul;
         } else {
-            val->nodeop = OP_DIV;
+            val->nodeop = OP_div;
         }
 
         buf = val;
@@ -243,6 +268,7 @@ static Func_node* getE (const char* *ptr, List* varlist) {
     Func_node* val = getT(ptr, varlist);
     Func_node* buf = val;
 
+    skipSpaces(ptr);
     while (**ptr == '+' || **ptr == '-') {
         char com = **ptr;
         (*ptr)++;
@@ -256,9 +282,9 @@ static Func_node* getE (const char* *ptr, List* varlist) {
         val->varind = 0;
 
         if (com == '+') {
-            val->nodeop = OP_ADD;
+            val->nodeop = OP_add;
         } else {
-            val->nodeop = OP_SUB;
+            val->nodeop = OP_sub;
         }
 
         buf = val;
@@ -278,6 +304,24 @@ static Func_node* newNode (Func_node n_node) {
     *node = n_node;
     node->left  = NULL;
     node->right = NULL;
+    return node;
+}
+
+static Func_node* newNodeOp (OP_TYPE type) {
+    Func_node* node = newNode(F_EMPTY);
+
+    node->type   = NODE_OPR;
+    node->nodeop = type;
+
+    return node;
+}
+
+static Func_node* newNodeCst (double val) {
+    Func_node* node = newNode(F_EMPTY);
+
+    node->type  = NODE_CST;
+    node->value = val;
+
     return node;
 }
 
@@ -324,7 +368,7 @@ static void latex_dumpEq (Func_node* node, List* varlist) {
     }
 
     
-    isOpr (node, OP_DIV) {
+    isOpr (node, OP_div) {
         fprintf(file, "\\frac");
     }
     if (node->left)  {
@@ -338,17 +382,28 @@ static void latex_dumpEq (Func_node* node, List* varlist) {
     }
 
     switch (node->nodeop) {
-        case OP_ADD:
+        case OP_add:
             fprintf(file, " + ");
             break;
-        case OP_SUB:
+        case OP_sub:
             fprintf(file, " - ");
             break;
-        case OP_MUL:
+        case OP_mul:
             fprintf(file, " \\cdot ");
             break;
-        case OP_POW:
+        case OP_pow:
             fprintf(file, "^");
+            break;
+        case OP_cos:
+            fprintf(file, "cos \\left(");
+            break;
+        case OP_sin:
+            fprintf(file, "sin \\left(");
+            break;
+        case OP_log:
+            fprintf(file, "log \\left(");
+            break;
+        default:
             break;
     }
 
@@ -361,9 +416,21 @@ static void latex_dumpEq (Func_node* node, List* varlist) {
         fprintf(file, "}");
         tex_breket(node, right, "\\right)");
     }
+
+    switch (node->nodeop) {
+        case OP_cos:
+            fprintf(file, "\\right)");
+            break;
+        case OP_sin:
+            fprintf(file, "\\right)");
+            break;
+        case OP_log:
+            fprintf(file, "\\right)");
+            break;
+        default:
+            break;
+    }
+
+
     fclose(file);
 }
-
-
-
-

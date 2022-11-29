@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 int main () {
-    Function* func = getFunc("(2 + 2)*(1 + (145 - 12) / (13 + 14^(2 + t^2)))");
+    Function* func = getFunc("sin log x");
     FunctionDump(func, "graphviz");
 
     FunctionDump(func, "tex");
