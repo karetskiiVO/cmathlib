@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <string.h>
+#include <math.h>
 
 #define isOpr(_node,_op_type) if ((_node)->type == NODE_OPR && (_node)->nodeop == (_op_type))
 #define tex_breket(_node,_side,_brek)   if (node->nodeop != OP_div && node->nodeop != OP_pow && (_node)->_side->type == NODE_OPR && (int)((_node)->_side->nodeop / 10) < (int)((_node)->nodeop / 10)) \
@@ -12,6 +13,7 @@
 static void skipSpaces (const char* *ptr);
 
 static Func_node* newNode    (Func_node n_node);
+static Func_node* newNodePrt (OP_TYPE type, Func_node* node1, Func_node* node2);
 static Func_node* newNodeOp  (OP_TYPE type);
 static Func_node* newNodeCst (double val);
 
@@ -22,12 +24,17 @@ static Func_node* getT (const char* *ptr, List* varlist);
 static Func_node* getE (const char* *ptr, List* varlist);
 static Func_node* getG (const char* str , List* varlist);
 
+static double eqValue (const Func_node* node, const List* varlist);
+
 static void graph_dumpEq_node (const Func_node* node, List* varlist);
 static void graph_dumpEq_edge (const Func_node* node);
 
-static void latex_dumpEq (Func_node* node, List* varlist);
+static void latex_dumpEq (const Func_node* node, List* varlist);
 
-static Func_node* Eqcopy (Func_node* origin_node);
+static void postordDump  (const Func_node* node);
+
+static Func_node* Eqcopy (const Func_node* origin_node);
+static Func_node* difFunc_eq (const Func_node* func, const size_t varind);
 
 
 
@@ -96,6 +103,13 @@ void FunctionDump (Function* func, const char* format) {
         system("pdflatex eq.tex");
     }
 
+    if (!strcmp(format, "postord")) {
+        postordDump(func->equation);
+
+        FILE* file = fopen("pstord.txt", "a");
+        fprintf(file, "\n");
+        fclose(file);
+    }
     ///////////////
 
 }
@@ -114,6 +128,8 @@ static void graph_dumpEq_node (const Func_node* node, List* varlist) {
         case NODE_VAR:
             fprintf(file, "[label=\" var_%ld: %s \"", node->varind,
                             varlist->arr[node->varind].value.name);
+            break;
+        case NODE_EMPTY:
             break;
     }
     fprintf(file, " color=\"olivedrab1\"]\n");
@@ -137,14 +153,18 @@ static void graph_dumpEq_edge (const Func_node* node) {
 
 static const char* opPrint (OP_TYPE op) {
     switch (op) {
-        case OP_add: return "+";
-        case OP_sub: return "-";
-        case OP_mul: return "*";
-        case OP_div: return "/";
-        case OP_pow: return "^";
-        case OP_cos: return "cos";
-        case OP_sin: return "sin";
-        case OP_log: return "log";
+        case OP_add:  return "+";
+        case OP_sub:  return "-";
+        case OP_mul:  return "*";
+        case OP_div:  return "/";
+        case OP_pow:  return "^";
+        case OP_cos:  return "cos";
+        case OP_sin:  return "sin";
+        case OP_log:  return "log";
+        case OP_tan:  return "tan";
+        case OP_sinh: return "sinh";
+        case OP_cosh: return "cosh";
+        case OP_tanh: return "cosh";
         default:     return NULL;
     }
 }
@@ -159,7 +179,7 @@ static Func_node* getN (const char* *ptr, List* varlist) {
     if (sscanf(*ptr, "%lf%n", &val, &pos)) {
         node->type  = NODE_CST;
         node->value = val;
-    } else if (sscanf(*ptr, "%[^^()+-=/* \t\n]%s",  var)) {
+    } else if (sscanf(*ptr, "%[^^()+-=/* \t\n]",  var)) {
         node->type  = NODE_VAR;
         var_t buf;
         pos = strlen(var);
@@ -181,7 +201,6 @@ static Func_node* getN (const char* *ptr, List* varlist) {
 
 #define isfunc(_fnc_str, _fnc)          \
 else if (!strcmp(_fnc_str, #_fnc)) {     \
-    printf("%s\n", _fnc_str);            \
     val = newNodeOp(OP_##_fnc);    \
     *ptr += pos;                \
     val->right = getP(ptr, varlist);    \
@@ -198,6 +217,10 @@ static Func_node* getP (const char* *ptr, List* varlist) {
     isfunc(fnc, sin)
     isfunc(fnc, cos)
     isfunc(fnc, log)
+    isfunc(fnc, tan)
+    isfunc(fnc, sinh)
+    isfunc(fnc, cosh)
+    isfunc(fnc, tanh)
     else {
         if (**ptr == '(') {
             (*ptr)++;
@@ -307,6 +330,19 @@ static Func_node* newNode (Func_node n_node) {
     return node;
 }
 
+static Func_node* newNodePrt (OP_TYPE type, Func_node* node1, Func_node* node2) {
+    Func_node* val = (Func_node*)calloc(1, sizeof(Func_node));
+    
+    *val = F_EMPTY;
+
+    val->left  = node1;
+    val->right = node2;
+    val->type  = NODE_OPR;
+    val->nodeop = type;
+
+    return val;
+}
+
 static Func_node* newNodeOp (OP_TYPE type) {
     Func_node* node = newNode(F_EMPTY);
 
@@ -345,7 +381,7 @@ void setVarValue_ (List* varlist, const char* var_name, double val) {
     varlist->arr[pos].value.val = val;
 }
 
-static Func_node* Eqcopy (Func_node* origin_node) {
+static Func_node* Eqcopy (const Func_node* origin_node) {
     Func_node* val = newNode(*origin_node);
 
     if (origin_node->left)  val->left  = Eqcopy(origin_node->left);
@@ -354,7 +390,7 @@ static Func_node* Eqcopy (Func_node* origin_node) {
     return val;
 }
 
-static void latex_dumpEq (Func_node* node, List* varlist) {
+static void latex_dumpEq (const Func_node* node, List* varlist) {
     FILE* file = fopen("eq.tex", "a");
     if (node->type == NODE_VAR) {
         fprintf(file, " %s ", varlist->arr[node->varind].value.name);
@@ -362,7 +398,9 @@ static void latex_dumpEq (Func_node* node, List* varlist) {
         return;
     }
     if (node->type == NODE_CST) {
+        if (node->value < 0) fprintf(file, "(");
         fprintf(file, " %lg ", node->value);
+        if (node->value < 0) fprintf(file, ")");
         fclose(file);
         return;
     }
@@ -403,6 +441,18 @@ static void latex_dumpEq (Func_node* node, List* varlist) {
         case OP_log:
             fprintf(file, "log \\left(");
             break;
+        case OP_tan:
+            fprintf(file, "tan \\left(");
+            break;
+        case OP_sinh:
+            fprintf(file, "sinh \\left(");
+            break;
+        case OP_cosh:
+            fprintf(file, "cosh \\left(");
+            break;
+        case OP_tanh:
+            fprintf(file, "tanh \\left(");
+            break;
         default:
             break;
     }
@@ -427,10 +477,145 @@ static void latex_dumpEq (Func_node* node, List* varlist) {
         case OP_log:
             fprintf(file, "\\right)");
             break;
+        case OP_tan:
+            fprintf(file, "\\right)");
+            break;
+        case OP_sinh:
+            fprintf(file, "\\right)");
+            break;
+        case OP_cosh:
+            fprintf(file, "\\right)");
+            break;
+        case OP_tanh:
+            fprintf(file, "\\right)");
+            break;
         default:
             break;
     }
 
+    fclose(file);
+}
+
+static void postordDump  (const Func_node* node) {
+    if (node->left)  postordDump(node->left);
+    if (node->right) postordDump(node->right);
+
+    FILE* file = fopen("pstord.txt", "a");
+
+    switch (node->type) {
+        case NODE_OPR:
+            fprintf(file, "%s", opPrint(node->nodeop));
+            break;
+        case NODE_CST:
+            fprintf(file, "%d", (int)round(node->value));
+            break;
+        default:
+            break;
+    }
 
     fclose(file);
 }
+
+static double eqValue (const Func_node* node, const List* varlist) {
+    #define L eqValue(node->left,  varlist)
+    #define R eqValue(node->right, varlist)
+
+    switch (node->type) {
+    case NODE_CST:
+        return node->value;
+    case NODE_VAR:
+        return varlist->arr[node->varind].value.val;
+    case NODE_OPR:
+        switch (node->nodeop) {
+            case OP_add:  return L + R;
+            case OP_sub:  return L - R;
+            case OP_div:  return L / R;
+            case OP_mul:  return L * R;
+            case OP_pow:  return pow(L, R);
+            case OP_log:  return log(R);
+            case OP_sin:  return sin(R);
+            case OP_cos:  return cos(R);
+            case OP_tan:  return tan(R);
+            case OP_sinh: return sinh(R);
+            case OP_cosh: return cosh(R);
+            case OP_tanh: return tanh(R);
+            case OP_EMPTY:return NAN;
+        }
+    case NODE_EMPTY:
+        return NAN;
+    }
+
+    #undef L
+    #undef R
+}
+
+double FuncValue (const Function* func) {
+    return eqValue(func->equation, func->variables);
+}
+
+static Func_node* difFunc_eq (const Func_node* func, const size_t varind) {
+    #define D(_side) difFunc_eq(func->_side, varind)
+    #define C(_side) Eqcopy(func->_side)
+    #define N(_op, _l, _r) newNodePrt(OP_##_op, _l, _r)
+    #define Cst(_num) newNodeCst(_num)
+    #define l left
+    #define r right
+
+    switch (func->type) {
+        case NODE_CST: return newNodeCst(0);
+        case NODE_VAR: 
+            if (varind == func->varind) {
+                return newNodeCst(1);
+            } 
+            return newNodeCst(0);
+        case NODE_EMPTY:
+            return NULL;
+        case NODE_OPR:
+        switch (func->nodeop) {
+            case OP_add:
+                return N(add, D(l), D(r));
+            case OP_sub:
+                return N(sub, D(l), D(r));
+            case OP_mul:
+                return N(add, N(mul, D(l), C(r)), N(mul, C(l), D(r)));
+            case OP_div:
+                return N(div, N(sub, N(mul, D(l), C(r)), N(mul, C(l), D(r))), N(pow, C(r), Cst(2)));
+            case OP_pow:
+                return N(mul, N(pow, C(l), C(r)), N(add, N(mul, N(div, D(l), C(l)), C(r)), N(mul, D(r), N(log, NULL, C(l)))));
+            case OP_log:
+                return N(div, D(r), C(r));
+            case OP_sin:
+                return N(mul, D(r), N(cos, NULL, C(r)));
+            case OP_cos:
+                return N(mul, D(r), N(mul, Cst(-1), N(cos, NULL, C(r))));
+            case OP_tan:
+                return N(div, D(r), N(pow, N(cos, NULL, C(r)), Cst(2)));
+            case OP_sinh:
+                return N(mul, D(r), N(cosh, NULL, C(r)));
+            case OP_cosh:
+                return N(mul, D(r), N(sinh, NULL, C(r)));
+            case OP_tanh:
+                return N(div, D(r), N(pow, N(cosh, NULL, C(r)), Cst(2)));
+            case OP_EMPTY:
+                return NULL;
+        }
+    }
+
+    #undef Cst
+    #undef D
+    #undef C
+    #undef N
+    #undef l
+    #undef r
+}
+
+Function* difFunc_ (const Function* func, const char* var_name) {
+    Function* derivative = (Function*)calloc(1, sizeof(Function));
+    //!!!!!!!!
+    derivative->variables = func->variables;
+    derivative->equation  = difFunc_eq(func->equation,
+                                listSearch(func->variables, var_name));
+    
+    return derivative;    
+}
+

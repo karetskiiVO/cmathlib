@@ -35,7 +35,15 @@
 *.dot
 *akinator
 *.akt
+
 *.bk
 *.txt
 *makefile
 *test
+
+*.aux
+*.log
+*.tex
+*.pdf
+
+*.txt
