@@ -7,8 +7,16 @@
 #include <math.h>
 
 #define isOpr(_node,_op_type) if ((_node)->type == NODE_OPR && (_node)->nodeop == (_op_type))
-#define tex_breket(_node,_side,_brek)   if (node->nodeop != OP_div && node->nodeop != OP_pow && (_node)->_side->type == NODE_OPR && (int)((_node)->_side->nodeop / 10) < (int)((_node)->nodeop / 10)) \
-                                    fprintf(file, "%s", _brek)
+#define tex_breket(_node,_side,_brek)                                               \
+    if (node->nodeop != OP_div &&                                                   \
+                node->nodeop != OP_pow &&                                           \
+                (_node)->_side->type == NODE_OPR &&                                 \
+                (int)((_node)->_side->nodeop / 10) < (int)((_node)->nodeop / 10))   \
+        fprintf(file, "%s", _brek);                                                 \
+    else if (node->nodeop == OP_pow &&                                              \
+            node->left == node->_side &&                                            \
+            node->left->type == NODE_OPR)                                           \
+        fprintf(file, "%s", _brek) 
 
 static void skipSpaces (const char* *ptr);
 
@@ -619,3 +627,213 @@ Function* difFunc_ (const Function* func, const char* var_name) {
     return derivative;    
 }
 
+static void remEq (Func_node* node) {
+    if (node->left)  remEq(node->left);
+    if (node->right) remEq(node->right);
+
+    free(node);
+}
+
+static int eqSimple_cst     (Func_node** eq) {
+    #define L ((*eq)->left)
+    #define R ((*eq)->right)
+
+    int simpled = 0;
+
+    if (L) simpled += eqSimple_cst(&L);
+    if (R) simpled += eqSimple_cst(&R);
+
+    switch ((*eq)->type) {
+        case NODE_CST: 
+            return 0;
+        case NODE_VAR:
+            return 0;
+        case NODE_EMPTY:
+            return 0; //// do something
+        case NODE_OPR:
+            break;
+    }
+
+    if ((L == NULL || L->type == NODE_CST) && R->type == NODE_CST) {
+        simpled += 1;
+
+        (*eq)->value = eqValue(*eq, NULL);
+        (*eq)->type  = NODE_CST;
+
+        free(L);
+        free(R);
+
+        L = NULL;
+        R = NULL;
+    }
+
+    return simpled;
+
+    #undef L
+    #undef R
+}
+
+static int eqSimple_neutral (Func_node** eq) {
+    #define L  ((*eq)->left)
+    #define R  ((*eq)->right)
+    #define L_neut(_neutral) ((*eq)->left  && ((*eq)->left)->value  == _neutral)
+    #define R_neut(_neutral) ((*eq)->right && ((*eq)->right)->value == _neutral)
+
+    int simpled = 0;
+
+    if (L) simpled += eqSimple_neutral(&L);
+    if (R) simpled += eqSimple_neutral(&R);
+
+    switch ((*eq)->type) {
+        case NODE_CST: 
+            return 0;
+        case NODE_VAR:
+            return 0;
+        case NODE_EMPTY:
+            return 0; //// do something
+        case NODE_OPR:
+            break;
+    }
+
+    switch ((*eq)->nodeop) {
+        case OP_add:  
+            if (L_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = Eqcopy(R);
+                remEq(buf);
+
+                simpled += 1;
+            } else 
+            if (R_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = Eqcopy(L);
+                remEq(buf);
+
+                simpled += 1;
+            }
+            break;
+        case OP_sub:
+            if (L_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = Eqcopy(R);
+                remEq(buf);
+
+                simpled += 1;
+            } else 
+            if (R_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = newNodePrt(OP_mul, Eqcopy(L), newNodeCst(-1));
+                remEq(buf);
+
+                simpled += 1;
+            }
+            break;
+        case OP_div:
+            if (L_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = newNodeCst(0);
+                remEq(buf);
+
+                simpled += 1;
+            } else 
+            if (R_neut(1)) {
+                Func_node* buf = *eq;
+                *eq = Eqcopy(L);
+                remEq(buf);
+
+                simpled += 1;
+            } else
+            if (L_neut(1)) {
+                Func_node* buf = *eq;
+                *eq = newNodePrt(OP_pow, Eqcopy(R), newNodeCst(-1));
+                remEq(buf);
+
+                simpled += 1;
+            }
+            break;
+        case OP_mul:  
+            if (L_neut(1)) {
+                Func_node* buf = *eq;
+                *eq = Eqcopy(R);
+                remEq(buf);
+
+                simpled += 1;
+            } else 
+            if (R_neut(1)) {
+                Func_node* buf = *eq;
+                *eq = Eqcopy(L);
+                remEq(buf);
+
+                simpled += 1;
+            } else 
+            if (L_neut(0) || R_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = newNodeCst(0);
+                remEq(buf);
+
+                simpled += 1;
+            }
+            break;
+        case OP_pow:  
+            if (R_neut(1)) {
+                Func_node* buf = *eq;
+                *eq = Eqcopy(L);
+                remEq(buf);
+
+                simpled += 1;
+            } else 
+            if (R_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = newNodeCst(1);
+                remEq(buf);
+
+                simpled += 1;
+            } else
+            if (L_neut(1)) {
+                Func_node* buf = *eq;
+                *eq = newNodeCst(1);
+                remEq(buf);
+
+                simpled += 1;
+            } else 
+            if (L_neut(0)) {
+                Func_node* buf = *eq;
+                *eq = newNodeCst(0);
+                remEq(buf);
+
+                simpled += 1;
+            }
+            
+            break;
+        case OP_log:  
+            break;
+        case OP_sin:  
+            break;
+        case OP_cos:  
+            break;
+        case OP_tan:  
+            break;
+        case OP_sinh: 
+            break;
+        case OP_cosh: 
+            break;
+        case OP_tanh: 
+            break;
+        case OP_EMPTY:
+            break;
+    }
+
+    return simpled;
+
+    #undef L_neut
+    #undef R_neut
+    #undef L
+    #undef R
+}
+
+void FuncSimple (Function* func) {
+    //FunctionDump(func, "tex");
+    while (eqSimple_cst(&(func->equation)) + eqSimple_neutral(&(func->equation))) {
+        //FunctionDump(func, "tex");
+    }
+}

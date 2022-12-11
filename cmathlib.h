@@ -36,4 +36,6 @@ void setVarValue_ (List* varlist, const char* var_name, double val);
 
 Function* difFunc_ (const Function* func, const char* var_name);
 
+void FuncSimple (Function* func);
+
 #endif // cmathlib.h
