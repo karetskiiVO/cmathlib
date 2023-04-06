@@ -207,14 +207,14 @@ static Func_node* getN (const char* *ptr, List* varlist) {
     return node;
 }
 
-#define isfunc(_fnc_str, _fnc)          \
-else if (!strcmp(_fnc_str, #_fnc)) {     \
-    val = newNodeOp(OP_##_fnc);    \
-    *ptr += pos;                \
-    val->right = getP(ptr, varlist);    \
-}
-
 static Func_node* getP (const char* *ptr, List* varlist) {
+    #define elif_func(_fnc_str, _fnc)          \
+    else if (!strcmp(_fnc_str, #_fnc)) {    \
+        val = newNodeOp(OP_##_fnc);         \
+        *ptr += pos;                        \
+        val->right = getP(ptr, varlist);    \
+    }
+
     skipSpaces(ptr);
     Func_node* val = NULL;
     size_t pos = 0;
@@ -222,13 +222,13 @@ static Func_node* getP (const char* *ptr, List* varlist) {
 
     sscanf(*ptr, "%[^ ()]%ln", fnc, &pos);
     if (false);
-    isfunc(fnc, sin)
-    isfunc(fnc, cos)
-    isfunc(fnc, log)
-    isfunc(fnc, tan)
-    isfunc(fnc, sinh)
-    isfunc(fnc, cosh)
-    isfunc(fnc, tanh)
+    elif_func(fnc, sin)
+    elif_func(fnc, cos)
+    elif_func(fnc, log)
+    elif_func(fnc, tan)
+    elif_func(fnc, sinh)
+    elif_func(fnc, cosh)
+    elif_func(fnc, tanh)
     else {
         if (**ptr == '(') {
             (*ptr)++;
@@ -241,9 +241,9 @@ static Func_node* getP (const char* *ptr, List* varlist) {
         }
     }
     return val;
-}
 
-#undef isfunc
+    #undef elif_func
+}
 
 static Func_node* getL (const char* *ptr, List* varlist) {
     Func_node* val = getP(ptr, varlist);
@@ -351,7 +351,7 @@ static Func_node* newNodePrt (OP_TYPE type, Func_node* node1, Func_node* node2) 
     return val;
 }
 
-static Func_node* newNodeOp (OP_TYPE type) {
+static Func_node* newNodeOp  (OP_TYPE type) {
     Func_node* node = newNode(F_EMPTY);
 
     node->type   = NODE_OPR;
@@ -713,16 +713,16 @@ static int eqSimple_neutral (Func_node** eq) {
             }
             break;
         case OP_sub:
-            if (L_neut(0)) {
+            if (R_neut(0)) {
                 Func_node* buf = *eq;
-                *eq = Eqcopy(R);
+                *eq = Eqcopy(L);
                 remEq(buf);
 
                 simpled += 1;
             } else 
-            if (R_neut(0)) {
+            if (L_neut(0)) {
                 Func_node* buf = *eq;
-                *eq = newNodePrt(OP_mul, Eqcopy(L), newNodeCst(-1));
+                *eq = newNodePrt(OP_mul, Eqcopy(R), newNodeCst(-1));
                 remEq(buf);
 
                 simpled += 1;
